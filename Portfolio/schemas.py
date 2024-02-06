@@ -7,15 +7,17 @@ from datetime import datetime
 
 class TokenValidity(BaseModel):
     name: str
+    amount: float
 
 
 class PortfolioBase(BaseModel):
     name: str
-    price: str
+    amount: float
+    price: float
 
 
 class PortfolioResponse(BaseModel):
     id: int
     name: str
-    price: str
+    price: float
     created_at: datetime
