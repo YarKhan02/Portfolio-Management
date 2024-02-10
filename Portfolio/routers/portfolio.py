@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy import func
 
-from .. import models, schemas, utils 
+from .. import models, schemas, calculation
 from ..database import get_db
 
 
@@ -23,49 +23,70 @@ def all_crypto_holdings(db: Session = Depends(get_db)):
 
 @router.post('/', response_model = schemas.PortfolioBase)
 def add_in_portfolio(add: schemas.TokenValidity, db: Session = Depends(get_db)):
-    to_add = get_token(add)
+    calculation.get_token(add)
 
-    addition = models.Portfolio(**to_add) # **to_add unpack all fields
+    addition = models.Portfolio(add.dict()) # **to_add unpack all fields
     db.add(addition)
     db.commit()
     db.refresh(addition)
     
-    return to_add 
+    return to_add
 
 
 
-@router.put('/', response_model = schemas.PortfolioBase)
-def update(add: schemas.TokenValidity, db: Session = Depends(get_db)):
+@router.put('/acquire', response_model = schemas.PortfolioBase)
+def update_acquire(add: schemas.TokenValidity, db: Session = Depends(get_db)):
     query = db.query(models.Portfolio).filter(models.Portfolio.name == add.name)
     crypto = query.first()
 
     if crypto == None:
         raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail = f'{add.name} does not exist')
 
-    new_entry = utils.get_token(add)
-    to_update = utils.calculate(crypto, new_entry)
+    calculation.calculate_buy(crypto, add)
 
     # if crypto.owner_id != current_user.id:
     #     raise HTTPException(status_code = status.HTTP_403_FORBIDDEN, detail = 'Not authorized to perform requested action')
 
+    query.update(add.dict(), synchronize_session = False)
     db.commit()
 
     return query.first()
 
 
 
-@router.delete('/', response_class = schemas.PortfolioBase)
-def update(rm: schemas.TokenValidity, db: Session = Depends(get_db)):
+@router.put('/remove', response_model = schemas.PortfolioBase)
+def update_remove(rm: schemas.TokenValidity, db: Session = Depends(get_db)):
     query = db.query(models.Portfolio).filter(models.Portfolio.name == rm.name)
     sell = query.first()
     
     if sell == None:
         raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail = f'{rm.name} does not exist')
 
+    try:
+        calculation.calculate_sell(sell, rm)
+
+    except HTTPException as e:
+        return e
+
     # if post.owner_id != current_user.id:
     #     raise HTTPException(status_code = status.HTTP_403_FORBIDDEN, detail = 'Not authorized to perform requested action')
 
-    # query.delete(synchronize_session = False)
+    query.update(rm.dict(), synchronize_session = False)
     db.commit()
     
+    
+
+
+
+@router.delete('/', status_code = status.HTTP_204_NO_CONTENT)
+def delete_entry(name: schemas.NameCheck, db: Session = Depends(get_db)):
+    query = db.query(models.Portfolio).filter(models.Portfolio.name == name.name)
+    to_delete = query.first()
+
+    if to_delete == None:
+        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail = f'{name.name} does not exist')
+
+    query.delete(synchronize_session = False)
+    db.commit()
+
     return Response(status_code = status.HTTP_404_NOT_FOUND)
