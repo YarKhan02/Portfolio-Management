@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy import func
 
-from .. import models, schemas, calculation
+from .. import models, schemas, calculation, outh2
 from ..database import get_db
 
 
@@ -21,16 +21,16 @@ def all_crypto_holdings(db: Session = Depends(get_db)):
 
 
 
-@router.post('/', response_model = schemas.PortfolioBase)
-def add_in_portfolio(add: schemas.TokenValidity, db: Session = Depends(get_db)):
-    calculation.get_token(add)
+@router.post('/', response_model = schemas.PortfolioRespose)
+def add_in_portfolio(entry: schemas.PortfolioAdded, db: Session = Depends(get_db), current_user: int = Depends(outh2.get_current_user)):
+    calculation.portfolio_entry(entry)
 
-    addition = models.Portfolio(add.dict()) # **to_add unpack all fields
-    db.add(addition)
+    new_entry = models.Portfolio(owner_id = current_user.id, **add.dict()) # **to_add unpack all fields
+    db.add(new_entry)
     db.commit()
-    db.refresh(addition)
+    db.refresh(new_entry)
     
-    return to_add
+    return new_entry
 
 
 
@@ -72,10 +72,8 @@ def update_remove(rm: schemas.TokenValidity, db: Session = Depends(get_db)):
     #     raise HTTPException(status_code = status.HTTP_403_FORBIDDEN, detail = 'Not authorized to perform requested action')
 
     query.update(rm.dict(), synchronize_session = False)
-    db.commit()
+    db.commit()    
     
-    
-
 
 
 @router.delete('/', status_code = status.HTTP_204_NO_CONTENT)

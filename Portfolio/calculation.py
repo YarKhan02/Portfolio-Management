@@ -4,6 +4,13 @@ from fastapi import HTTPException, status
 
 
 
+def portfolio_entry(entry):
+    get_info(entry)
+
+    entry.coins = entry.amount / entry.price
+
+
+
 def calculate_buy(current, new_entry):
     get_token(new_entry)
 
@@ -45,7 +52,7 @@ def calculate_sell(current, rm):
 
 
 
-def get_token(cypto):
+def get_info(cypto):
     api_url = f"https://api.coingecko.com/api/v3/simple/price?ids={cypto.name}&vs_currencies=usd"
 
     try:
